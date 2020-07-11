@@ -46,12 +46,57 @@ def connect():
         db_version = cur.fetchone()
         print(db_version)
 
+        cur.execute("select exists(select * from information_schema.tables where table_name=%s)", ('artists',))
+        if not cur.fetchone()[0]:
+            command = (
+                """
+                CREATE TABLE artists (
+                    ID SERIAL,
+                    NAME VARCHAR NOT NULL DEFAULT '',
+                    PICTURE VARCHAR,
+                    PRIMARY KEY (ID)
+                );
+                """
+            )
+            cur.execute(command)
+        cur.execute("select exists(select * from information_schema.tables where table_name=%s)", ('albums',))
+        if not cur.fetchone()[0]:
+            command = (
+                """
+                CREATE TABLE albums (
+                    ID SERIAL,
+                    ARTISTID INT NOT NULL,
+                    NAME VARCHAR DEFAULT '',
+                    RELEASEDATE DATE,
+                    PICTURE VARCHAR,
+                    PRIMARY KEY (ID),
+                    FOREIGN KEY (ARTISTID) REFERENCES artists (ID) ON UPDATE CASCADE ON DELETE CASCADE
+                );
+                """
+            )
+            cur.execute(command)
+        cur.execute("select exists(select * from information_schema.tables where table_name=%s)", ('tracks',))
+        if not cur.fetchone()[0]:
+            command = (
+                """
+                CREATE TABLE tracks (
+                ID SERIAL,
+                ALBUMID INT NOT NULL,
+                NAME VARCHAR DEFAULT '',
+                PRIMARY KEY (ID),
+                FOREIGN KEY (ALBUMID) REFERENCES albums (ID) ON UPDATE CASCADE ON DELETE CASCADE
+                );
+                """
+            )
+            cur.execute(command)
+
         # close the communication with the PostgreSQL
         cur.close()
     except (Exception, psycopg2.DatabaseError) as error:
         print(error)
     finally:
         if conn is not None:
+            conn.commit()
             conn.close()
             print('Database connection closed.')
 
