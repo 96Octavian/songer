@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import os
 import mutagen
 from configparser import ConfigParser
@@ -64,4 +66,4 @@ def scan(rootdir='.'):
 
 
 if __name__ == '__main__':
-    scan('Music')
+    connect()
