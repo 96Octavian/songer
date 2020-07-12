@@ -67,10 +67,11 @@ def connect():
                     ID SERIAL,
                     ARTISTID INT NOT NULL,
                     NAME VARCHAR DEFAULT '',
-                    RELEASEDATE DATE,
+                    RELEASEDATE DATE NOT NULL,
                     PICTURE VARCHAR,
                     PRIMARY KEY (ID),
-                    FOREIGN KEY (ARTISTID) REFERENCES artists (ID) ON UPDATE CASCADE ON DELETE CASCADE
+                    FOREIGN KEY (ARTISTID) REFERENCES artists (ID) ON UPDATE CASCADE ON DELETE CASCADE,
+                    CONSTRAINT releasedate_must_be_1st_jan CHECK ( date_trunc('year', RELEASEDATE) = RELEASEDATE )
                 );
                 """
             )
@@ -90,6 +91,8 @@ def connect():
             )
             cur.execute(command)
 
+        artists, albums, tracks = scan()
+
         # close the communication with the PostgreSQL
         cur.close()
     except (Exception, psycopg2.DatabaseError) as error:
@@ -102,13 +105,48 @@ def connect():
 
 
 def scan(rootdir='.'):
+    artists = set()
+    albums = {}
+    tracks = {}
+
     for root, directories, filenames in os.walk(rootdir):
         for filename in filenames:
             song = mutagen.File(os.path.join(root, filename))
             if song is None:
                 continue
-            print(song)
+            artist = None
+            album = None
+            if 'albumartist' in song:
+                artist = song['albumartist'][0]
+            # TODO: Se ci sono più artist aggiungili nel titolo come 'feat.'
+            elif 'artist' in song:
+                artist = song['artist'][0]
+            if artist is not None:
+                artists.add(artist)
+
+            if 'album' in song:
+                album = {'name': song['album']}
+                if song['album'] in albums:
+                    album = albums[song['album']]
+                else:
+                    albums[song['album']] = album
+                if 'date' in song:
+                    album['releasedate'] = song['date'][0]
+                if artist is not None:
+                    album['artist'] = artist
+
+            if 'title' in song:
+                track = {}
+                if song['title'] in tracks:
+                    track = tracks[song['title']]
+                else:
+                    tracks[song['title']] = track
+                track['title'] = song['title']
+                if album is not None:
+                    track['album'] = album['name']
+
+    return artists, albums, tracks
 
 
 if __name__ == '__main__':
-    connect()
+    scan()
