@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 
 import os
+import sys
+
 import mutagen
 from configparser import ConfigParser
 import psycopg2
@@ -24,6 +26,7 @@ def config(filename='database.ini', section='postgresql'):
     return db
 
 
+# TODO: Refactor and separate functions
 def connect():
     """ Connect to the PostgreSQL database server """
     conn = None
@@ -91,7 +94,11 @@ def connect():
             )
             cur.execute(command)
 
-        artists, albums, tracks = scan("Music")
+        # TODO: I don't like this, use argparse
+        folder = "Music"
+        if len(sys.argv) == 2:
+            folder = sys.argv[1]
+        artists, albums, tracks = scan(folder)
 
         artists_id = {}
         for artist in artists:
