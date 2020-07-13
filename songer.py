@@ -102,22 +102,22 @@ def connect():
                 cur.execute(command, (artist,))
                 artist_row = cur.fetchone()
                 if artist_row is not None:
-                    artists_id[artist] = artist_row[0]
+                    artists_id[artist.lower()] = artist_row[0]
                 else:
                     command = """INSERT INTO artists(NAME) VALUES(%s) RETURNING ID;"""
                     cur.execute(command, (artist,))
                     # get the generated id back
                     artist_row = cur.fetchone()
-                    artists_id[artist] = artist_row[0]
+                    artists_id[artist.lower()] = artist_row[0]
             except (Exception, psycopg2.DatabaseError) as error:
                 print(error)
-        for album in albums:
+        for album in albums.values():
             if 'artist' not in album:
                 continue
             try:
                 artist_id = None
-                if album['artist'] in artists_id:
-                    artist_id = artists_id[album['artist']]
+                if album['artist'].lower() in artists_id:
+                    artist_id = artists_id[album['artist'].lower()]
                 else:
                     command = """SELECT ID FROM artists WHERE NAME = %s ORDER BY ID ASC LIMIT 1"""
                     cur.execute(command, (album['artist'],))
@@ -128,19 +128,19 @@ def connect():
                 if artist_id is None:
                     continue
                 command = """INSERT INTO albums(ARTISTID, NAME, RELEASEDATE) VALUES(%s, %s, %s) RETURNING ID;"""
-                cur.execute(command, (artist_id, album['name'], album['releasedate']))
+                cur.execute(command, (artist_id, album['name'], f'01-01-{album["releasedate"]}'))
                 # get the generated id back
                 id = cur.fetchone()[0]
                 album['ID'] = id
             except (Exception, psycopg2.DatabaseError) as error:
                 print(error)
-        for track in tracks:
+        for track in tracks.values():
             if 'album' not in track:
                 continue
             album_id = None
             try:
-                if track['album'] in albums:
-                    album_id = albums[track['album']]
+                if track['album'].lower() in albums:
+                    album_id = albums[track['album'].lower()]['ID']
                 else:
                     command = """SELECT ID FROM albums WHERE NAME = %s ORDER BY ID ASC LIMIT 1"""
                     cur.execute(command, (track['album'],))
@@ -151,7 +151,8 @@ def connect():
                 if album_id is None:
                     continue
                 command = """INSERT INTO tracks(ALBUMID, NAME) VALUES(%s, %s) RETURNING ID;"""
-                cur.execute(command, (album_id, track['name']))
+                #TODO: Handle case with albums dict having the album without ID
+                cur.execute(command, (album_id, track['title']))
                 # get the generated id back
                 track_id = cur.fetchone()[0]
                 track['ID'] = track_id
@@ -190,11 +191,11 @@ def scan(rootdir='.'):
                 artists.add(artist)
 
             if 'album' in song:
-                if song['album'][0] in albums:
+                if song['album'][0].lower() in albums:
                     album = albums[song['album'][0]]
                 else:
                     album = {'name': song['album'][0]}
-                    albums[song['album'][0]] = album
+                    albums[song['album'][0].lower()] = album
                 if artist is not None:
                     album['artist'] = artist
                 if 'date' in song:
