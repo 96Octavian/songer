@@ -177,6 +177,7 @@ def connect():
             print('Database connection closed.')
 
 
+# TODO: Handle duplicates
 def scan(rootdir='.'):
     artists = set()
     albums = {}
@@ -202,7 +203,7 @@ def scan(rootdir='.'):
 
             if 'album' in song:
                 if song['album'][0].lower() in albums:
-                    album = albums[song['album'][0]]
+                    album = albums[song['album'][0].lower()]
                 else:
                     album = {'name': song['album'][0]}
                     albums[song['album'][0].lower()] = album
@@ -220,10 +221,10 @@ def scan(rootdir='.'):
             if 'title' in song:
                 title = song['title'][0]
             track = {}
-            if title in tracks:
-                track = tracks[title]
+            if title.lower() in tracks:
+                track = tracks[title.lower()]
             else:
-                tracks[title] = track
+                tracks[title.lower()] = track
             track['title'] = title
             if album is not None:
                 track['album'] = album['name']
