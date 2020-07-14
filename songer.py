@@ -21,7 +21,7 @@ def config(filename='database.ini', section='postgresql'):
         for param in params:
             db[param[0]] = param[1]
     else:
-        raise Exception('Section {0} not found in the {1} file'.format(section, filename))
+        raise Exception(f'Section {section} not found in the {filename} file')
 
     return db
 
@@ -158,7 +158,7 @@ def connect():
                 if album_id is None:
                     continue
                 command = """INSERT INTO tracks(ALBUMID, NAME) VALUES(%s, %s) RETURNING ID;"""
-                #TODO: Handle case with albums dict having the album without ID
+                # TODO: Handle case with albums dict having the album without ID
                 cur.execute(command, (album_id, track['title']))
                 # get the generated id back
                 track_id = cur.fetchone()[0]
@@ -189,6 +189,7 @@ def scan(rootdir='.'):
                 continue
             artist = None
             album = None
+            warn_text = None
             if 'albumartist' in song:
                 artist = song['albumartist'][0]
             # TODO: Se ci sono più artist aggiungili nel titolo come 'feat.'
@@ -196,6 +197,8 @@ def scan(rootdir='.'):
                 artist = song['artist'][0]
             if artist is not None:
                 artists.add(artist)
+            else:
+                warn_text = f'{filename} does not have artist'
 
             if 'album' in song:
                 if song['album'][0].lower() in albums:
@@ -208,17 +211,22 @@ def scan(rootdir='.'):
                 if 'date' in song:
                     album['releasedate'] = song['date'][0]
                 else:
+                    warn_text += ", date"
                     album['releasedate'] = '1900'
+            else:
+                warn_text += ", album"
 
+            title = filename
             if 'title' in song:
-                track = {}
-                if song['title'][0] in tracks:
-                    track = tracks[song['title'][0]]
-                else:
-                    tracks[song['title'][0]] = track
-                track['title'] = song['title'][0]
-                if album is not None:
-                    track['album'] = album['name']
+                title = song['title'][0]
+            track = {}
+            if title in tracks:
+                track = tracks[title]
+            else:
+                tracks[title] = track
+            track['title'] = title
+            if album is not None:
+                track['album'] = album['name']
 
     return artists, albums, tracks
 
