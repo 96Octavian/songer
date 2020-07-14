@@ -185,49 +185,61 @@ def scan(rootdir='.'):
 
     for root, directories, filenames in os.walk(rootdir):
         for filename in filenames:
-            song = mutagen.File(os.path.join(root, filename))
-            if song is None:
-                continue
-            artist = None
-            album = None
-            warn_text = None
-            if 'albumartist' in song:
-                artist = song['albumartist'][0]
-            # TODO: Se ci sono più artist aggiungili nel titolo come 'feat.'
-            elif 'artist' in song:
-                artist = song['artist'][0]
-            if artist is not None:
-                artists.add(artist)
-            else:
-                warn_text = f'{filename} does not have artist'
-
-            if 'album' in song:
-                if song['album'][0].lower() in albums:
-                    album = albums[song['album'][0].lower()]
-                else:
-                    album = {'name': song['album'][0]}
-                    albums[song['album'][0].lower()] = album
+            try:
+                song = mutagen.File(os.path.join(root, filename))
+                if song is None:
+                    continue
+                artist = None
+                album = None
+                warn_text = None
+                if 'albumartist' in song:
+                    artist = song['albumartist'][0]
+                # TODO: Se ci sono più artist aggiungili nel titolo come 'feat.'
+                elif 'artist' in song:
+                    artist = song['artist'][0]
                 if artist is not None:
-                    album['artist'] = artist
-                if 'date' in song:
-                    album['releasedate'] = song['date'][0]
+                    artists.add(artist)
                 else:
-                    warn_text += ", date"
-                    album['releasedate'] = '1900'
-            else:
-                warn_text += ", album"
+                    warn_text = f'{filename} does not have artist'
 
-            title = filename
-            if 'title' in song:
-                title = song['title'][0]
-            track = {}
-            if title.lower() in tracks:
-                track = tracks[title.lower()]
-            else:
-                tracks[title.lower()] = track
-            track['title'] = title
-            if album is not None:
-                track['album'] = album['name']
+                if 'album' in song:
+                    if song['album'][0].lower() in albums:
+                        album = albums[song['album'][0].lower()]
+                    else:
+                        album = {'name': song['album'][0]}
+                        albums[song['album'][0].lower()] = album
+                    if artist is not None:
+                        album['artist'] = artist
+                    if 'date' in song:
+                        album['releasedate'] = song['date'][0]
+                    else:
+                        if warn_text is None:
+                            warn_text = f'{filename} does not have date'
+                        else:
+                            warn_text += ", date"
+                        album['releasedate'] = '1900'
+                else:
+                    if warn_text is None:
+                        warn_text = f'{filename} does not have album'
+                    else:
+                        warn_text += ", album"
+
+                title = filename
+                if 'title' in song:
+                    title = song['title'][0]
+                track = {}
+                if title.lower() in tracks:
+                    track = tracks[title.lower()]
+                else:
+                    tracks[title.lower()] = track
+                track['title'] = title
+                if album is not None:
+                    track['album'] = album['name']
+
+                if warn_text is not None:
+                    print(warn_text)
+            except:
+                pass
 
     return artists, albums, tracks
 
