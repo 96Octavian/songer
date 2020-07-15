@@ -87,6 +87,7 @@ def connect():
                 ID SERIAL,
                 ALBUMID INT NOT NULL,
                 NAME VARCHAR DEFAULT '',
+                FILEPATH VARCHAR NOT NULL,
                 PRIMARY KEY (ID),
                 FOREIGN KEY (ALBUMID) REFERENCES albums (ID) ON UPDATE CASCADE ON DELETE CASCADE
                 );
@@ -157,9 +158,9 @@ def connect():
 
                 if album_id is None:
                     continue
-                command = """INSERT INTO tracks(ALBUMID, NAME) VALUES(%s, %s) RETURNING ID;"""
+                command = """INSERT INTO tracks(ALBUMID, NAME) VALUES(%s, %s, %s) RETURNING ID;"""
                 # TODO: Handle case with albums dict having the album without ID
-                cur.execute(command, (album_id, track['title']))
+                cur.execute(command, (album_id, track['title'], track['filepath']))
                 # get the generated id back
                 track_id = cur.fetchone()[0]
                 track['ID'] = track_id
@@ -233,6 +234,7 @@ def scan(rootdir='.'):
                 else:
                     tracks[title.lower()] = track
                 track['title'] = title
+                track['filepath'] = os.path.join(root, filename)
                 if album is not None:
                     track['album'] = album['name']
 
