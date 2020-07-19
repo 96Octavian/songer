@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# TODO: Serious error handling
 
 import os
 import sys
@@ -24,6 +25,101 @@ def config(filename='database.ini', section='postgresql'):
         raise Exception(f'Section {section} not found in the {filename} file')
 
     return db
+
+
+def insert_artist(cur, track, artists_id):
+    if 'album' not in track:
+        return
+    if 'artist' not in track['album']:
+        return
+    if track['album']['artist'].lower() in artists_id:
+        return
+    try:
+        artist = track['album']['artist']
+        command = """SELECT ID FROM artists WHERE NAME = %s ORDER BY ID ASC LIMIT 1"""
+        cur.execute(command, (artist,))
+        artist_row = cur.fetchone()
+        if artist_row is not None:
+            artists_id[artist.lower()] = artist_row[0]
+        else:
+            command = """INSERT INTO artists(NAME) VALUES(%s) RETURNING ID;"""
+            cur.execute(command, (artist,))
+            # get the generated id back
+            artist_row = cur.fetchone()  # TODO: can an INSERT return None?
+            artists_id[artist.lower()] = artist_row[0]
+    except (Exception, psycopg2.DatabaseError) as error:
+        print(error)
+
+
+def insert_album(cur, track, albums_id, artists_id):
+    if 'album' not in track:
+        return
+    if track['album']['name'].lower() in albums_id:
+        return
+    if 'artist' not in track['album']:
+        return
+    artist = track['album']['artist']
+    album = track['album']
+    artist_id = None
+    try:
+        command = """SELECT ID FROM albums WHERE NAME = %s ORDER BY ID ASC LIMIT 1"""
+        cur.execute(command, (album['name'],))
+        album_row = cur.fetchone()
+        if album_row is not None:
+            albums_id[album['name'].lower()] = album_row[0]
+            return
+
+        if artist.lower() in artists_id:
+            artist_id = artists_id[artist.lower()]
+        else:
+            command = """SELECT ID FROM artists WHERE NAME = %s ORDER BY ID ASC LIMIT 1"""
+            cur.execute(command, (artist,))
+            artist_row = cur.fetchone()
+            if artist_row is not None:
+                artist_id = artist_row[0]
+
+        if artist_id is not None:
+            command = """INSERT INTO albums(ARTISTID, NAME, RELEASEDATE) VALUES(%s, %s, %s) RETURNING ID;"""
+            cur.execute(command, (artist_id, album['name'], f'01-01-{album["releasedate"]}'))
+            # get the generated id back
+            album_id = cur.fetchone()[0]
+            albums_id[album['name'].lower()] = album_id
+
+    except (Exception, psycopg2.DatabaseError) as error:
+        print(error)
+
+
+def insert_track(cur, track, tracks_id, albums_id):
+    if track['title'].lower() in tracks_id:
+        return
+    if 'album' not in track:
+        return
+    album_id = None
+    try:
+        command = """SELECT ID FROM tracks WHERE NAME = %s ORDER BY ID ASC LIMIT 1"""
+        cur.execute(command, (track['title'],))
+        track_row = cur.fetchone()
+        if track_row is not None:
+            tracks_id[track['title'].lower()] = track_row[0]
+            return
+
+        if track['album']['name'].lower() in albums_id:
+            album_id = albums_id[track['album']['name'].lower()]
+        else:
+            command = """SELECT ID FROM albums WHERE NAME = %s ORDER BY ID ASC LIMIT 1"""
+            cur.execute(command, (track['album']['name'],))
+            album_row = cur.fetchone()
+            if album_row is not None:
+                album_id = album_row[0]
+
+        if album_id is not None:
+            command = """INSERT INTO tracks(ALBUMID, NAME, FILEPATH) VALUES(%s, %s, %s) RETURNING ID;"""
+            cur.execute(command, (album_id, track['title'], track['filepath']))
+            # get the generated id back
+            track_id = cur.fetchone()[0]
+            tracks_id[track['title'].lower()] = track_id
+    except (Exception, psycopg2.DatabaseError) as error:
+        print(error)
 
 
 # TODO: Refactor and separate functions
@@ -99,73 +195,15 @@ def connect():
         folder = "Music"
         if len(sys.argv) == 2:
             folder = sys.argv[1]
-        artists, albums, tracks = scan(folder)
 
         artists_id = {}
-        for artist in artists:
-            if artist in artists_id:
-                continue
-            try:
-                command = """SELECT ID FROM artists WHERE NAME = %s ORDER BY ID ASC LIMIT 1"""
-                cur.execute(command, (artist,))
-                artist_row = cur.fetchone()
-                if artist_row is not None:
-                    artists_id[artist.lower()] = artist_row[0]
-                else:
-                    command = """INSERT INTO artists(NAME) VALUES(%s) RETURNING ID;"""
-                    cur.execute(command, (artist,))
-                    # get the generated id back
-                    artist_row = cur.fetchone()
-                    artists_id[artist.lower()] = artist_row[0]
-            except (Exception, psycopg2.DatabaseError) as error:
-                print(error)
-        for album in albums.values():
-            if 'artist' not in album:
-                continue
-            try:
-                artist_id = None
-                if album['artist'].lower() in artists_id:
-                    artist_id = artists_id[album['artist'].lower()]
-                else:
-                    command = """SELECT ID FROM artists WHERE NAME = %s ORDER BY ID ASC LIMIT 1"""
-                    cur.execute(command, (album['artist'],))
-                    artist_row = cur.fetchone()
-                    if artist_row is not None:
-                        artist_id = artist_row[0]
+        albums_id = {}
+        tracks_id = {}
+        for track in scan(folder):
+            insert_artist(cur, track, artists_id)
+            insert_album(cur, track, albums_id, artists_id)
+            insert_track(cur, track, tracks_id, albums_id)
 
-                if artist_id is None:
-                    continue
-                command = """INSERT INTO albums(ARTISTID, NAME, RELEASEDATE) VALUES(%s, %s, %s) RETURNING ID;"""
-                cur.execute(command, (artist_id, album['name'], f'01-01-{album["releasedate"]}'))
-                # get the generated id back
-                id = cur.fetchone()[0]
-                album['ID'] = id
-            except (Exception, psycopg2.DatabaseError) as error:
-                print(error)
-        for track in tracks.values():
-            if 'album' not in track:
-                continue
-            album_id = None
-            try:
-                if track['album'].lower() in albums:
-                    album_id = albums[track['album'].lower()]['ID']
-                else:
-                    command = """SELECT ID FROM albums WHERE NAME = %s ORDER BY ID ASC LIMIT 1"""
-                    cur.execute(command, (track['album'],))
-                    album_row = cur.fetchone()
-                    if album_row is not None:
-                        album_id = album_row[0]
-
-                if album_id is None:
-                    continue
-                command = """INSERT INTO tracks(ALBUMID, NAME) VALUES(%s, %s, %s) RETURNING ID;"""
-                # TODO: Handle case with albums dict having the album without ID
-                cur.execute(command, (album_id, track['title'], track['filepath']))
-                # get the generated id back
-                track_id = cur.fetchone()[0]
-                track['ID'] = track_id
-            except (Exception, psycopg2.DatabaseError) as error:
-                print(error)
 
         # close the communication with the PostgreSQL
         cur.close()
@@ -180,10 +218,6 @@ def connect():
 
 # TODO: Handle duplicates
 def scan(rootdir='.'):
-    artists = set()
-    albums = {}
-    tracks = {}
-
     for root, directories, filenames in os.walk(rootdir):
         for filename in filenames:
             try:
@@ -195,20 +229,15 @@ def scan(rootdir='.'):
                 warn_text = None
                 if 'albumartist' in song:
                     artist = song['albumartist'][0]
-                # TODO: Se ci sono più artist aggiungili nel titolo come 'feat.'
+                # TODO: Multiple artists must be added in a new column in the DB, and interface will shoe them in the
+                #  title as '(feat. )'
                 elif 'artist' in song:
                     artist = song['artist'][0]
-                if artist is not None:
-                    artists.add(artist)
-                else:
+                if artist is None:
                     warn_text = f'{filename} does not have artist'
 
                 if 'album' in song:
-                    if song['album'][0].lower() in albums:
-                        album = albums[song['album'][0].lower()]
-                    else:
-                        album = {'name': song['album'][0]}
-                        albums[song['album'][0].lower()] = album
+                    album = {'name': song['album'][0]}
                     if artist is not None:
                         album['artist'] = artist
                     if 'date' in song:
@@ -218,6 +247,7 @@ def scan(rootdir='.'):
                             warn_text = f'{filename} does not have date'
                         else:
                             warn_text += ", date"
+                        # TODO: Re-design the DB to add multiple artists and decide if date can be NULL or default
                         album['releasedate'] = '1900'
                 else:
                     if warn_text is None:
@@ -228,22 +258,17 @@ def scan(rootdir='.'):
                 title = filename
                 if 'title' in song:
                     title = song['title'][0]
-                track = {}
-                if title.lower() in tracks:
-                    track = tracks[title.lower()]
-                else:
-                    tracks[title.lower()] = track
-                track['title'] = title
-                track['filepath'] = os.path.join(root, filename)
+                track = {'title': title, 'filepath': os.path.join(root, filename)}
                 if album is not None:
-                    track['album'] = album['name']
+                    track['album'] = album
 
                 if warn_text is not None:
                     print(warn_text)
+
+                yield track
+
             except:
                 pass
-
-    return artists, albums, tracks
 
 
 if __name__ == '__main__':
