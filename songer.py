@@ -113,8 +113,8 @@ def insert_track(cur, track, tracks_id, albums_id):
                 album_id = album_row[0]
 
         if album_id is not None:
-            command = """INSERT INTO tracks(ALBUMID, NAME, FILEPATH) VALUES(%s, %s, %s) RETURNING ID;"""
-            cur.execute(command, (album_id, track['title'], track['filepath']))
+            command = """INSERT INTO tracks(ALBUMID, NAME, TRACKNUMBER, FILEPATH) VALUES(%s, %s, %s, %s) RETURNING ID;"""
+            cur.execute(command, (album_id, track['title'], track['tracknumer'], track['filepath']))
             # get the generated id back
             track_id = cur.fetchone()[0]
             tracks_id[track['title'].lower()] = track_id
@@ -183,6 +183,7 @@ def connect():
                 ID SERIAL,
                 ALBUMID INT NOT NULL,
                 NAME VARCHAR DEFAULT '',
+                NUMBER INT DEFAULT 1,
                 FILEPATH VARCHAR NOT NULL,
                 PRIMARY KEY (ID),
                 FOREIGN KEY (ALBUMID) REFERENCES albums (ID) ON UPDATE CASCADE ON DELETE CASCADE
@@ -203,7 +204,6 @@ def connect():
             insert_artist(cur, track, artists_id)
             insert_album(cur, track, albums_id, artists_id)
             insert_track(cur, track, tracks_id, albums_id)
-
 
         # close the communication with the PostgreSQL
         cur.close()
@@ -258,7 +258,11 @@ def scan(rootdir='.'):
                 title = filename
                 if 'title' in song:
                     title = song['title'][0]
-                track = {'title': title, 'filepath': os.path.join(root, filename)}
+                tracknumber = 1
+                if 'tracknumber' in song:
+                    tracknumber = int(song['tracknumber'][0])
+                track = {'title': title, 'tracknumber': tracknumber, 'filepath': os.path.join(root, filename)}
+
                 if album is not None:
                     track['album'] = album
 
