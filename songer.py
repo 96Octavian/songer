@@ -114,7 +114,7 @@ def insert_track(cur, track, tracks_id, albums_id):
 
         if album_id is not None:
             command = """INSERT INTO tracks(ALBUMID, NAME, TRACKNUMBER, FILEPATH) VALUES(%s, %s, %s, %s) RETURNING ID;"""
-            cur.execute(command, (album_id, track['title'], track['tracknumer'], track['filepath']))
+            cur.execute(command, (album_id, track['title'], track['tracknumber'], track['filepath']))
             # get the generated id back
             track_id = cur.fetchone()[0]
             tracks_id[track['title'].lower()] = track_id
@@ -183,7 +183,7 @@ def connect():
                 ID SERIAL,
                 ALBUMID INT NOT NULL,
                 NAME VARCHAR DEFAULT '',
-                NUMBER INT DEFAULT 1,
+                TRACKNUMBER INT DEFAULT 1,
                 FILEPATH VARCHAR NOT NULL,
                 PRIMARY KEY (ID),
                 FOREIGN KEY (ALBUMID) REFERENCES albums (ID) ON UPDATE CASCADE ON DELETE CASCADE
