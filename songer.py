@@ -261,7 +261,7 @@ def scan(rootdir='.'):
                 tracknumber = 1
                 if 'tracknumber' in song:
                     tracknumber = int(song['tracknumber'][0])
-                track = {'title': title, 'tracknumber': tracknumber, 'filepath': os.path.join(root, filename)}
+                track = {'title': title, 'tracknumber': tracknumber, 'filepath': os.path.abspath(os.path.join(root, filename))}
 
                 if album is not None:
                     track['album'] = album
