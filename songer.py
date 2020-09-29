@@ -6,6 +6,7 @@ import sys
 
 import mutagen
 from configparser import ConfigParser
+from datetime import datetime
 import psycopg2
 
 
@@ -27,6 +28,7 @@ def config(filename='database.ini', section='postgresql'):
     return db
 
 
+# TODO: Insert artist even if it has no tracks or albums
 def insert_artist(cur, track, artists_id):
     if 'album' not in track:
         return
@@ -51,6 +53,7 @@ def insert_artist(cur, track, artists_id):
         print(error)
 
 
+# TODO: Insert album even if it has no tracks
 def insert_album(cur, track, albums_id, artists_id):
     if 'album' not in track:
         return
@@ -80,7 +83,7 @@ def insert_album(cur, track, albums_id, artists_id):
 
         if artist_id is not None:
             command = """INSERT INTO albums(ARTISTID, NAME, RELEASEDATE) VALUES(%s, %s, %s) RETURNING ID;"""
-            cur.execute(command, (artist_id, album['name'], f'01-01-{album["releasedate"]}'))
+            cur.execute(command, (artist_id, album['name'], album["releasedate"]))
             # get the generated id back
             album_id = cur.fetchone()[0]
             albums_id[album['name'].lower()] = album_id
@@ -122,7 +125,6 @@ def insert_track(cur, track, tracks_id, albums_id):
         print(error)
 
 
-# TODO: Refactor and separate functions
 def connect():
     """ Connect to the PostgreSQL database server """
     conn = None
@@ -151,7 +153,7 @@ def connect():
                 """
                 CREATE TABLE artists (
                     ID SERIAL,
-                    NAME VARCHAR NOT NULL DEFAULT '',
+                    NAME VARCHAR NOT NULL,
                     PICTURE VARCHAR,
                     PRIMARY KEY (ID)
                 );
@@ -165,12 +167,11 @@ def connect():
                 CREATE TABLE albums (
                     ID SERIAL,
                     ARTISTID INT NOT NULL,
-                    NAME VARCHAR DEFAULT '',
-                    RELEASEDATE DATE NOT NULL,
+                    NAME VARCHAR NOT NULL,
+                    RELEASEDATE DATE,
                     PICTURE VARCHAR,
                     PRIMARY KEY (ID),
-                    FOREIGN KEY (ARTISTID) REFERENCES artists (ID) ON UPDATE CASCADE ON DELETE CASCADE,
-                    CONSTRAINT releasedate_must_be_1st_jan CHECK ( date_trunc('year', RELEASEDATE) = RELEASEDATE )
+                    FOREIGN KEY (ARTISTID) REFERENCES artists (ID) ON UPDATE CASCADE ON DELETE CASCADE
                 );
                 """
             )
@@ -182,8 +183,8 @@ def connect():
                 CREATE TABLE tracks (
                 ID SERIAL,
                 ALBUMID INT NOT NULL,
-                NAME VARCHAR DEFAULT '',
-                TRACKNUMBER INT DEFAULT 1,
+                NAME VARCHAR NOT NULL,
+                TRACKNUMBER INT,
                 FILEPATH VARCHAR NOT NULL,
                 PRIMARY KEY (ID),
                 FOREIGN KEY (ALBUMID) REFERENCES albums (ID) ON UPDATE CASCADE ON DELETE CASCADE
@@ -211,6 +212,7 @@ def connect():
         print(error)
     finally:
         if conn is not None:
+            # TODO: Maybe I shouldn't commit on exception
             conn.commit()
             conn.close()
             print('Database connection closed.')
@@ -221,7 +223,7 @@ def scan(rootdir='.'):
     for root, directories, filenames in os.walk(rootdir):
         for filename in filenames:
             try:
-                song = mutagen.File(os.path.join(root, filename))
+                song = mutagen.File(os.path.join(root, filename), easy=True)
                 if song is None:
                     continue
                 artist = None
@@ -240,15 +242,18 @@ def scan(rootdir='.'):
                     album = {'name': song['album'][0]}
                     if artist is not None:
                         album['artist'] = artist
+                    album['releasedate'] = None
                     if 'date' in song:
-                        album['releasedate'] = song['date'][0]
+                        try:
+                            album['releasedate'] = datetime.strptime(song['date'][0], '%Y').strftime('01-01-%Y')
+                        except:
+                            pass
                     else:
                         if warn_text is None:
                             warn_text = f'{filename} does not have date'
                         else:
                             warn_text += ", date"
-                        # TODO: Re-design the DB to add multiple artists and decide if date can be NULL or default
-                        album['releasedate'] = '1900'
+                        # TODO: Re-design the DB to add multiple artists
                 else:
                     if warn_text is None:
                         warn_text = f'{filename} does not have album'
@@ -258,10 +263,13 @@ def scan(rootdir='.'):
                 title = filename
                 if 'title' in song:
                     title = song['title'][0]
-                tracknumber = 1
+                tracknumber = None
                 if 'tracknumber' in song:
-                    tracknumber = int(song['tracknumber'][0])
-                track = {'title': title, 'tracknumber': tracknumber, 'filepath': os.path.abspath(os.path.join(root, filename))}
+                    tracknumber = int(song['tracknumber'][0].split('/')[0])
+                    if tracknumber == 0:
+                        tracknumber = None
+                track = {'title': title, 'tracknumber': tracknumber,
+                         'filepath': os.path.abspath(os.path.join(root, filename))}
 
                 if album is not None:
                     track['album'] = album
@@ -271,8 +279,8 @@ def scan(rootdir='.'):
 
                 yield track
 
-            except:
-                pass
+            except Exception as error:
+                print(error)
 
 
 if __name__ == '__main__':
