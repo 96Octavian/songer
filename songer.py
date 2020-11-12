@@ -184,7 +184,7 @@ def connect():
                 ID SERIAL,
                 ALBUMID INT NOT NULL,
                 NAME VARCHAR NOT NULL,
-                TRACKNUMBER INT,
+                TRACKNUMBER INT NOT NULL,
                 FILEPATH VARCHAR NOT NULL,
                 PRIMARY KEY (ID),
                 FOREIGN KEY (ALBUMID) REFERENCES albums (ID) ON UPDATE CASCADE ON DELETE CASCADE
@@ -194,7 +194,7 @@ def connect():
             cur.execute(command)
 
         # TODO: I don't like this, use argparse
-        folder = "Music"
+        folder = "F:/Music"
         if len(sys.argv) == 2:
             folder = sys.argv[1]
 
@@ -263,11 +263,9 @@ def scan(rootdir='.'):
                 title = filename
                 if 'title' in song:
                     title = song['title'][0]
-                tracknumber = None
+                tracknumber = 0
                 if 'tracknumber' in song:
                     tracknumber = int(song['tracknumber'][0].split('/')[0])
-                    if tracknumber == 0:
-                        tracknumber = None
                 track = {'title': title, 'tracknumber': tracknumber,
                          'filepath': os.path.abspath(os.path.join(root, filename))}
 
