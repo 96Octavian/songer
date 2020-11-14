@@ -116,8 +116,8 @@ def insert_track(cur, track, tracks_id, albums_id):
                 album_id = album_row[0]
 
         if album_id is not None:
-            command = """INSERT INTO tracks(ALBUMID, NAME, TRACKNUMBER, FILEPATH) VALUES(%s, %s, %s, %s) RETURNING ID;"""
-            cur.execute(command, (album_id, track['title'], track['tracknumber'], track['filepath']))
+            command = """INSERT INTO tracks(ALBUMID, NAME, TRACKNUMBER, DURATION, FILEPATH) VALUES(%s, %s, %s, %s, %s) RETURNING ID;"""
+            cur.execute(command, (album_id, track['title'], track['tracknumber'], track['duration'], track['filepath']))
             # get the generated id back
             track_id = cur.fetchone()[0]
             tracks_id[track['title'].lower()] = track_id
@@ -185,6 +185,7 @@ def connect():
                 ALBUMID INT NOT NULL,
                 NAME VARCHAR NOT NULL,
                 TRACKNUMBER INT NOT NULL,
+                DURATION INT NOT NULL,
                 FILEPATH VARCHAR NOT NULL,
                 PRIMARY KEY (ID),
                 FOREIGN KEY (ALBUMID) REFERENCES albums (ID) ON UPDATE CASCADE ON DELETE CASCADE
@@ -194,7 +195,7 @@ def connect():
             cur.execute(command)
 
         # TODO: I don't like this, use argparse
-        folder = "F:/Music"
+        folder = "Music"
         if len(sys.argv) == 2:
             folder = sys.argv[1]
 
@@ -267,7 +268,7 @@ def scan(rootdir='.'):
                 if 'tracknumber' in song:
                     tracknumber = int(song['tracknumber'][0].split('/')[0])
                 track = {'title': title, 'tracknumber': tracknumber,
-                         'filepath': os.path.abspath(os.path.join(root, filename))}
+                         'filepath': os.path.abspath(os.path.join(root, filename)), 'duration': song.info.length}
 
                 if album is not None:
                     track['album'] = album
